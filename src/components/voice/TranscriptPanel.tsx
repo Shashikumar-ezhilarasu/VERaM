@@ -8,7 +8,7 @@ export function TranscriptPanel() {
 
   return (
     <div className="w-full text-center mt-6">
-      <p className="font-serif text-2xl text-ink-green">
+      <p className="font-serif text-2xl text-hhgoa-green">
         {transcriptFinal ? (
           <span>{transcriptFinal}</span>
         ) : (
@@ -40,11 +40,11 @@ export function AnswerPanel() {
     .replace(/#/g, '');
 
   return (
-    <div className="w-full mt-8 p-6 bg-forest/5 rounded-2xl">
-      <p className="font-mono text-xs tracking-[0.2em] text-accent-pink mb-4 uppercase">Answer</p>
-      <p className="font-mono text-ink-green leading-relaxed text-sm whitespace-pre-wrap text-left">
+    <div className="w-full mt-8 p-6 bg-white/5 border border-white/10 rounded-none">
+      <p className="font-mono text-xs tracking-[0.2em] text-hhgoa-green mb-4 uppercase">Answer</p>
+      <p className="font-mono text-hhgoa-green leading-relaxed text-sm whitespace-pre-wrap text-left">
         {cleanedText}
-        {status === 'streaming_answer' && <span className="inline-block w-2 h-4 ml-1 bg-accent-pink animate-pulse" />}
+        {status === 'streaming_answer' && <span className="inline-block w-2 h-4 ml-1 bg-hhgoa-green animate-pulse" />}
       </p>
     </div>
   );

@@ -66,14 +66,14 @@ export function MicButton({ onStart, onStop, analyser }: MicButtonProps) {
     <div className="relative flex flex-col items-center justify-center">
       <div className="relative flex items-center justify-center w-32 h-32 mb-4">
         <div ref={ringRef} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <DashedCircle size={140} className={isError ? "text-red-500 stroke-current" : "text-accent-pink stroke-current"} />
+          <DashedCircle size={140} className={isError ? "text-red-500 stroke-current" : "text-hhgoa-green stroke-current"} />
         </div>
         
         <button 
           onClick={isRecording ? onStop : onStart}
           disabled={status === 'requesting_mic' || isProcessing}
           className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-colors shadow-lg
-            ${isError ? 'bg-red-900 text-red-200' : 'bg-ink-green text-card-cream hover:bg-forest'}
+            ${isError ? 'bg-red-900 text-red-200' : 'bg-hhgoa-green text-black hover:bg-white'}
             ${(status === 'requesting_mic' || isProcessing) ? 'opacity-70 cursor-wait' : 'cursor-pointer'}
           `}
         >
@@ -82,12 +82,12 @@ export function MicButton({ onStart, onStop, analyser }: MicButtonProps) {
           ) : isError ? (
             <AlertCircle size={36} />
           ) : (
-            <Mic size={36} className={isRecording ? "text-accent-pink" : ""} />
+            <Mic size={36} className={isRecording ? "text-hhgoa-green" : ""} />
           )}
         </button>
       </div>
 
-      <p className="font-mono text-xs tracking-widest uppercase text-ink-muted h-4">
+      <p className="font-mono text-xs tracking-widest uppercase text-white/60 h-4">
         {isIdle && "Tap to ask"}
         {status === 'requesting_mic' && "Allow Mic..."}
         {isRecording && "Listening..."}

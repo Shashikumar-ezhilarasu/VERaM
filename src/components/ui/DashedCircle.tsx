@@ -21,7 +21,7 @@ export function DashedCircle({ size = 100, className = '', ...props }: DashedCir
         cy="50" 
         r={radius} 
         fill="none" 
-        stroke="var(--accent-pink)" 
+        stroke="var(--hhgoa-green)" 
         strokeWidth="2"
         strokeDasharray="6 8" // 6px dash, 8px gap
       />
