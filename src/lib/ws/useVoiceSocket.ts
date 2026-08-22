@@ -53,9 +53,20 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
     setStatus('connecting');
 
     try {
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const encodedLang = encodeURIComponent(lang);
-      const ws = new WebSocket(`${wsProtocol}://${window.location.host}/api/v1/ws/${encodedLang}`);
+      let wsUrl = '';
+
+      if (process.env.NEXT_PUBLIC_WS_URL) {
+        // Use the explicitly provided backend URL (for Vercel deployment)
+        const baseUrl = process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
+        wsUrl = `${baseUrl}/api/v1/ws/${encodedLang}`;
+      } else {
+        // Fallback to local proxy (for local development)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        wsUrl = `${wsProtocol}://${window.location.host}/api/v1/ws/${encodedLang}`;
+      }
+
+      const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer';
       
       ws.onopen = () => setStatus('connected');
