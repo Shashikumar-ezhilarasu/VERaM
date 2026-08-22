@@ -45,19 +45,22 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
     }
   }, [appendPartialTranscript, onAudioComplete, onAudioInterrupt, setAnswerDone, setError, setFinalTranscript, setSessionStatus]);
 
+  // Packet queue to prevent dropping initial audio frames during reconnection
+  const packetQueueRef = useRef<ArrayBuffer[]>([]);
+
   const connect = useCallback(() => {
     if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
     setStatus('connecting');
+    packetQueueRef.current = [];
 
     try {
       const encodedLang = encodeURIComponent(lang);
       let wsUrl = '';
 
       if (process.env.NEXT_PUBLIC_WS_URL) {
-        // Defensively parse in case the user pasted the full path instead of just the base URL
         let baseUrl = process.env.NEXT_PUBLIC_WS_URL.trim().replace(/\/$/, "");
         if (baseUrl.endsWith(`/api/v1/ws/${lang}`)) {
           baseUrl = baseUrl.replace(new RegExp(`/api/v1/ws/${lang}$`), "");
@@ -67,7 +70,6 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
         
         wsUrl = `${baseUrl}/api/v1/ws/${encodedLang}`;
       } else {
-        // Fallback to local proxy (for local development)
         const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         wsUrl = `${wsProtocol}://${window.location.host}/api/v1/ws/${encodedLang}`;
       }
@@ -76,7 +78,18 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
       const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer';
       
-      ws.onopen = () => setStatus('connected');
+      ws.onopen = () => {
+        setStatus('connected');
+        // Flush any packets queued while connecting
+        const queue = packetQueueRef.current;
+        if (queue.length > 0) {
+          console.log(`[VoiceSocket] Flushing ${queue.length} queued packets`);
+          for (const packet of queue) {
+            ws.send(packet);
+          }
+          packetQueueRef.current = [];
+        }
+      };
       ws.onclose = (event) => {
         if (event.code === 1008) {
           setError('Rate limit exceeded. Please retry in a moment.');
@@ -84,8 +97,8 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
           return;
         }
         if (event.code === 1011) {
-          setError('Session timed out due to inactivity. Start a new prompt.');
-          setStatus('error');
+          console.warn('[VoiceSocket] Backend closed due to 10s inactivity. Ready for auto-reconnect on next click.');
+          setStatus('disconnected');
           return;
         }
         setStatus('disconnected');
@@ -120,8 +133,15 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
     if (wsRef.current) {
       if (wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(data as any);
+      } else if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        // Queue the packet if still connecting
+        if (data instanceof ArrayBuffer) {
+          packetQueueRef.current.push(data);
+        } else if ((data as ArrayBufferView).buffer) {
+          packetQueueRef.current.push((data as ArrayBufferView).buffer);
+        }
       } else {
-        console.warn(`[VoiceSocket] WebSocket not open (readyState: ${wsRef.current.readyState}). Dropping packet of size ${data instanceof ArrayBuffer ? data.byteLength : 'unknown'}`);
+        console.warn(`[VoiceSocket] WebSocket not open (readyState: ${wsRef.current.readyState}). Dropping packet.`);
       }
     } else {
       console.warn("[VoiceSocket] No WebSocket instance exists. Dropping packet.");

@@ -145,6 +145,13 @@ export default function DemoPage() {
     store.resetSession();
     store.setStatus('requesting_mic');
     clearPlayback();
+    
+    // Auto-reconnect if the socket was closed due to 10s backend inactivity
+    if (wsStatus !== 'connected') {
+      console.log("WebSocket is not connected, reconnecting...");
+      connect();
+    }
+    
     try {
       await ensurePlaybackContext();
       console.log("Playback context ensured");
