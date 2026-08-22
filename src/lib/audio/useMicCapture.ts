@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 export function useMicCapture(onAudioData: (buffer: ArrayBuffer) => void) {
   const [isRecording, setIsRecording] = useState(false);
@@ -10,14 +10,20 @@ export function useMicCapture(onAudioData: (buffer: ArrayBuffer) => void) {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const silentGainRef = useRef<GainNode | null>(null);
 
+  // Keep a stable reference to the latest onAudioData callback to prevent stale closures.
+  const onAudioDataRef = useRef(onAudioData);
+  useEffect(() => {
+    onAudioDataRef.current = onAudioData;
+  }, [onAudioData]);
+
   const emitPcm16 = useCallback((floatBuffer: Float32Array) => {
     const int16Buffer = new Int16Array(floatBuffer.length);
     for (let i = 0; i < floatBuffer.length; i++) {
       const s = Math.max(-1, Math.min(1, floatBuffer[i]));
       int16Buffer[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
-    onAudioData(int16Buffer.buffer);
-  }, [onAudioData]);
+    onAudioDataRef.current(int16Buffer.buffer);
+  }, []);
 
   const startCapture = useCallback(async () => {
     try {
@@ -49,7 +55,7 @@ export function useMicCapture(onAudioData: (buffer: ArrayBuffer) => void) {
         await audioCtx.audioWorklet.addModule('/pcm-worklet.js');
         const worklet = new AudioWorkletNode(audioCtx, 'pcm-worklet');
         worklet.port.onmessage = (event) => {
-          onAudioData(event.data);
+          onAudioDataRef.current(event.data);
         };
         workletRef.current = worklet;
         analyser.connect(worklet);

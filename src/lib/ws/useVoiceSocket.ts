@@ -99,8 +99,14 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
   }, [handleMessage, lang, onAudioChunk, setError]);
 
   const send = useCallback((data: ArrayBuffer | ArrayBufferView | string) => {
-    if (wsRef.current && wsRef.current.readyState === 1) { // OPEN
-      wsRef.current.send(data as any);
+    if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(data as any);
+      } else {
+        console.warn(`[VoiceSocket] WebSocket not open (readyState: ${wsRef.current.readyState}). Dropping packet of size ${data instanceof ArrayBuffer ? data.byteLength : 'unknown'}`);
+      }
+    } else {
+      console.warn("[VoiceSocket] No WebSocket instance exists. Dropping packet.");
     }
   }, []);
 

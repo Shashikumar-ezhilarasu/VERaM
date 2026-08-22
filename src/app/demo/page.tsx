@@ -18,7 +18,8 @@ export default function DemoPage() {
 
   const ensurePlaybackContext = useCallback(async () => {
     if (!playbackCtxRef.current) {
-      playbackCtxRef.current = new AudioContext();
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      playbackCtxRef.current = new AudioCtx();
     }
 
     if (playbackCtxRef.current.state === 'suspended') {
@@ -110,10 +111,9 @@ export default function DemoPage() {
   });
   
   const handleAudioData = useCallback((buffer: ArrayBuffer) => {
-    if (wsStatus === 'connected') {
-      send(buffer);
-    }
-  }, [send, wsStatus]);
+    // Rely on the socket's internal readyState check in `send` instead of React state
+    send(buffer);
+  }, [send]);
 
   const { startCapture, stopCapture, getAnalyser } = useMicCapture(handleAudioData);
 
@@ -135,14 +135,19 @@ export default function DemoPage() {
   }, [clearPlayback, close, connect, stopCapture]);
 
   const handleStart = async () => {
+    console.log("MicButton clicked: handleStart");
     store.resetSession();
     store.setStatus('requesting_mic');
     clearPlayback();
     try {
       await ensurePlaybackContext();
+      console.log("Playback context ensured");
       await startCapture();
+      console.log("Capture started");
       store.setStatus('recording');
-    } catch {
+    } catch (e: any) {
+      console.error("Mic start failed", e);
+      alert(`Could not start microphone: ${e?.message || 'Unknown error'}`);
       store.setError("Mic permission denied");
     }
   };
