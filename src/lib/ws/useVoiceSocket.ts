@@ -57,8 +57,14 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
       let wsUrl = '';
 
       if (process.env.NEXT_PUBLIC_WS_URL) {
-        // Use the explicitly provided backend URL (for Vercel deployment)
-        const baseUrl = process.env.NEXT_PUBLIC_WS_URL.replace(/\/$/, "");
+        // Defensively parse in case the user pasted the full path instead of just the base URL
+        let baseUrl = process.env.NEXT_PUBLIC_WS_URL.trim().replace(/\/$/, "");
+        if (baseUrl.endsWith(`/api/v1/ws/${lang}`)) {
+          baseUrl = baseUrl.replace(new RegExp(`/api/v1/ws/${lang}$`), "");
+        } else if (baseUrl.endsWith('/api/v1/ws')) {
+          baseUrl = baseUrl.replace(/\/api\/v1\/ws$/, "");
+        }
+        
         wsUrl = `${baseUrl}/api/v1/ws/${encodedLang}`;
       } else {
         // Fallback to local proxy (for local development)
@@ -66,6 +72,7 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
         wsUrl = `${wsProtocol}://${window.location.host}/api/v1/ws/${encodedLang}`;
       }
 
+      console.log(`[VoiceSocket] Attempting connection to: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer';
       
