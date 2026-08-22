@@ -1,5 +1,23 @@
 import { create } from 'zustand';
 
+
+export interface QueryMetrics {
+  id: string;
+  timestamp: number;
+  sttLatencyMs: number | null;
+  retrievalLatencyMs: number | null;
+  llmLatencyMs: number | null;
+  ttsLatencyMs: number | null;
+  totalLatencyMs: number | null;
+  transcript?: string;
+  declined?: boolean;
+}
+
+export interface CompletedResponse {
+  answerText: string;
+  metrics: QueryMetrics;
+}
+
 export type VoiceSessionStatus = 
   | 'idle' 
   | 'requesting_mic' 
@@ -29,6 +47,7 @@ interface VoiceSessionState {
   
   // History for Metrics
   metricsHistory: Array<{ sttMs: number; retrievalMs: number; generationMs: number; totalMs: number }>;
+  responses: CompletedResponse[];
   
   // Audio Quality
   audioSignalLevel: number;
@@ -56,6 +75,7 @@ interface VoiceSessionState {
   
   setSystemState: (state: Partial<{ isOnline: boolean; isBackendWaking: boolean; audioSignalLevel: number }>) => void;
 
+  commitResponse: () => void;
   setAudioState: (state: { currentTime?: number; duration?: number; micError?: boolean; isPlaying?: boolean; isPaused?: boolean; hasData?: boolean }) => void;
   resetSession: () => void;
 }
@@ -72,6 +92,7 @@ export const useVoiceSessionStore = create<VoiceSessionState>((set) => ({
   isOnline: true,
   isBackendWaking: false,
   metricsHistory: [],
+  responses: [],
   audioSignalLevel: 0,
 
   isAudioPlaying: false,
@@ -109,7 +130,37 @@ export const useVoiceSessionStore = create<VoiceSessionState>((set) => ({
 
   })),
 
-  resetSession: () => set({
+
+  commitResponse: () => set((state) => {
+    if (!state.answerText && !state.guardrailBlocked) return state; // Nothing to commit
+    
+    // Avoid double committing the exact same final state
+    const last = state.responses[0];
+    if (last && last.metrics.transcript === state.transcriptFinal && last.answerText === state.answerText) return state;
+
+    const metrics: QueryMetrics = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: Date.now(),
+      sttLatencyMs: state.latencyMetrics?.sttMs ?? null,
+      retrievalLatencyMs: state.latencyMetrics?.retrievalMs ?? null,
+      llmLatencyMs: state.latencyMetrics?.generationMs ?? null,
+      ttsLatencyMs: null,
+      totalLatencyMs: state.latencyMetrics?.totalMs ?? null,
+      transcript: state.transcriptFinal,
+      declined: !!state.guardrailBlocked,
+    };
+    
+    const newResponse: CompletedResponse = {
+      answerText: state.answerText,
+      metrics
+    };
+    
+    return {
+      responses: [newResponse, ...state.responses]
+    };
+  }),
+
+  resetSession: () => set((state) => ({
     status: 'idle',
     errorMessage: null,
     transcriptPartial: '',
@@ -118,13 +169,14 @@ export const useVoiceSessionStore = create<VoiceSessionState>((set) => ({
     latencyMetrics: null,
     guardrailBlocked: null,
 
-  isOnline: true,
-  isBackendWaking: false,
-  metricsHistory: [],
-  audioSignalLevel: 0,
+    isOnline: state.isOnline,
+    isBackendWaking: false,
+    metricsHistory: state.metricsHistory,
+    responses: state.responses,
+    audioSignalLevel: 0,
 
-  isAudioPlaying: false,
+    isAudioPlaying: false,
     isAudioPaused: false,
     hasAudioData: false,
-  })
+  }))
 }));

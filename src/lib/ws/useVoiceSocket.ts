@@ -20,6 +20,7 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
   const setFinalTranscript = useVoiceSessionStore((state) => state.setFinalTranscript);
   const setSessionStatus = useVoiceSessionStore((state) => state.setStatus);
   const setAnswerDone = useVoiceSessionStore((state) => state.setAnswerDone);
+  const commitResponse = useVoiceSessionStore((state) => state.commitResponse);
 
   const handleMessage = useCallback((msg: BackendJsonEvent) => {
     switch (msg.event) {
@@ -36,6 +37,7 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
         break;
       case 'audio.complete':
         setSessionStatus('done');
+        commitResponse();
         onAudioComplete?.();
         break;
       case 'audio.interrupt':
@@ -43,9 +45,10 @@ export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
         break;
       case 'llm.error':
         setError(msg.text);
+        commitResponse();
         break;
     }
-  }, [appendPartialTranscript, onAudioComplete, onAudioInterrupt, setAnswerDone, setError, setFinalTranscript, setSessionStatus]);
+  }, [appendPartialTranscript, onAudioComplete, onAudioInterrupt, setAnswerDone, setError, setFinalTranscript, setSessionStatus, commitResponse]);
 
   // Packet queue to prevent dropping initial audio frames during reconnection
   const packetQueueRef = useRef<ArrayBuffer[]>([]);

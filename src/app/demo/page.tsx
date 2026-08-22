@@ -10,6 +10,7 @@ import { ConnectionStatusDot } from '@/components/voice/ConnectionStatusDot';
 import { LatencyBadges } from '@/components/voice/LatencyBadges';
 import { MicButton } from '@/components/voice/MicButton';
 import { TranscriptPanel, AnswerPanel } from '@/components/voice/TranscriptPanel';
+import { ResponseCard } from '@/components/voice/ResponseCard';
 
 export default function DemoPage() {
   const store = useVoiceSessionStore();
@@ -173,7 +174,7 @@ export default function DemoPage() {
   // Silence detector
   useEffect(() => {
     if (store.status !== 'recording') {
-      setSilenceCountdown(null);
+      if (silenceCountdown !== null) setSilenceCountdown(null);
       return;
     }
     
@@ -286,7 +287,7 @@ export default function DemoPage() {
     }
   };
 
-  const handleStop = () => {
+  function handleStop() {
     // Mute the mic tracks to stream true silence to the STT, 
     // forcing the backend VAD to endpoint the transcription naturally.
     muteCapture();
@@ -323,9 +324,16 @@ export default function DemoPage() {
           <TranscriptPanel />
           <AnswerPanel onPause={pauseAudio} onPlay={resumeAudio} onReplay={replayAudio} />
           
-          <div className="mt-8">
+          <div className="w-full mt-8">
             <LatencyBadges />
           </div>
+
+          <div className="w-full mt-12 space-y-6">
+            {store.responses.map((r) => (
+              <ResponseCard key={r.metrics.id} answerText={r.answerText} metrics={r.metrics} />
+            ))}
+          </div>
+
         </div>
       </div>
     </main>
