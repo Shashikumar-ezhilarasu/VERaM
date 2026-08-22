@@ -8,6 +8,9 @@
   --accent-pink-soft: #FCE1EC;
   --accent-yellow: #F4C93B;
   --ink-muted: #4B5A50;
+  --tech-cyan: #00F0FF;
+  --tech-lime: #39FF14;
+  --bg-darker: #051A0F;
 }
 
 @theme inline {
@@ -18,6 +21,9 @@
   --color-accent-pink-soft: var(--accent-pink-soft);
   --color-accent-yellow: var(--accent-yellow);
   --color-ink-muted: var(--ink-muted);
+  --color-tech-cyan: var(--tech-cyan);
+  --color-tech-lime: var(--tech-lime);
+  --color-bg-darker: var(--bg-darker);
 
   --font-serif: var(--font-fraunces), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
