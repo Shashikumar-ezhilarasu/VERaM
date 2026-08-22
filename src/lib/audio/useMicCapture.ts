@@ -114,9 +114,17 @@ export function useMicCapture(onAudioData: (buffer: ArrayBuffer) => void) {
     setIsRecording(false);
   }, []);
 
+  const muteCapture = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => {
+        t.enabled = false;
+      });
+    }
+  }, []);
+
   const getAnalyser = useCallback(() => {
     return analyserRef.current;
   }, []);
 
-  return { isRecording, startCapture, stopCapture, getAnalyser };
+  return { isRecording, startCapture, stopCapture, muteCapture, getAnalyser };
 }

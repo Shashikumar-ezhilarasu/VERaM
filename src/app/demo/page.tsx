@@ -115,7 +115,7 @@ export default function DemoPage() {
     send(buffer);
   }, [send]);
 
-  const { startCapture, stopCapture, getAnalyser } = useMicCapture(handleAudioData);
+  const { startCapture, stopCapture, muteCapture, getAnalyser } = useMicCapture(handleAudioData);
 
   useEffect(() => {
     answerTextRef.current = store.answerText;
@@ -153,9 +153,16 @@ export default function DemoPage() {
   };
 
   const handleStop = () => {
-    stopCapture();
+    // Mute the mic tracks to stream true silence to the STT, 
+    // forcing the backend VAD to endpoint the transcription naturally.
+    muteCapture();
     if (store.status === 'recording') {
       store.setStatus('awaiting_response');
+      // Fully shut down the hardware microphone after 1 second 
+      // to let the silence propagate to the backend.
+      setTimeout(() => stopCapture(), 1000);
+    } else {
+      stopCapture();
     }
   };
 
