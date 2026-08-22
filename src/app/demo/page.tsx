@@ -34,8 +34,14 @@ export default function DemoPage() {
       return;
     }
 
+    // Strip markdown to prevent TTS from reading "asterisk"
+    const cleanedText = text
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '')
+      .replace(/#/g, '');
+
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
     utterance.lang = 'hi-IN';
     utterance.rate = 1;
     window.speechSynthesis.speak(utterance);

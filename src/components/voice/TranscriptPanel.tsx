@@ -33,11 +33,17 @@ export function AnswerPanel() {
 
   if (!answerText && status !== 'streaming_answer' && status !== 'done') return null;
 
+  // Strip markdown formatting for a cleaner natural language display
+  const cleanedText = answerText
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
+    .replace(/#/g, '');
+
   return (
     <div className="w-full mt-8 p-6 bg-forest/5 rounded-2xl">
       <p className="font-mono text-xs tracking-[0.2em] text-accent-pink mb-4 uppercase">Answer</p>
-      <p className="font-mono text-ink-green leading-relaxed text-sm">
-        {answerText}
+      <p className="font-mono text-ink-green leading-relaxed text-sm whitespace-pre-wrap text-left">
+        {cleanedText}
         {status === 'streaming_answer' && <span className="inline-block w-2 h-4 ml-1 bg-accent-pink animate-pulse" />}
       </p>
     </div>
