@@ -1,38 +1,91 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { WsMessageFromServer, WsMessageFromClient } from './protocol';
-import { createMockServer, MockConnection } from './mockServer';
+import { useState, useCallback, useRef } from 'react';
+import { BackendJsonEvent } from './protocol';
 import { useVoiceSessionStore } from '@/store/voiceSessionStore';
 
-export function useVoiceSocket() {
+interface UseVoiceSocketOptions {
+  lang?: string;
+  onAudioChunk?: (data: ArrayBuffer) => void;
+  onAudioInterrupt?: () => void;
+  onAudioComplete?: () => void;
+}
+
+export function useVoiceSocket(options: UseVoiceSocketOptions = {}) {
+  const { lang = 'hi-IN', onAudioChunk, onAudioInterrupt, onAudioComplete } = options;
   const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
-  const wsRef = useRef<WebSocket | MockConnection | null>(null);
-  const store = useVoiceSessionStore();
+  const wsRef = useRef<WebSocket | null>(null);
+  const setError = useVoiceSessionStore((state) => state.setError);
+  const appendPartialTranscript = useVoiceSessionStore((state) => state.appendPartialTranscript);
+  const setFinalTranscript = useVoiceSessionStore((state) => state.setFinalTranscript);
+  const setSessionStatus = useVoiceSessionStore((state) => state.setStatus);
+  const setAnswerDone = useVoiceSessionStore((state) => state.setAnswerDone);
+
+  const handleMessage = useCallback((msg: BackendJsonEvent) => {
+    switch (msg.event) {
+      case 'transcript.partial':
+        appendPartialTranscript(msg.text);
+        break;
+      case 'transcript.final':
+        setFinalTranscript(msg.text);
+        setSessionStatus('awaiting_response');
+        break;
+      case 'llm.response':
+        setSessionStatus('streaming_answer');
+        setAnswerDone(msg.text);
+        break;
+      case 'audio.complete':
+        setSessionStatus('done');
+        onAudioComplete?.();
+        break;
+      case 'audio.interrupt':
+        onAudioInterrupt?.();
+        break;
+      case 'llm.error':
+        setError(msg.text);
+        break;
+    }
+  }, [appendPartialTranscript, onAudioComplete, onAudioInterrupt, setAnswerDone, setError, setFinalTranscript, setSessionStatus]);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === 1 || status === 'connecting') return;
-    setStatus('connecting');
-
-    const isMock = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mock');
-
-    if (isMock) {
-      wsRef.current = createMockServer(
-        handleMessage,
-        () => setStatus('connected'),
-        () => setStatus('disconnected')
-      );
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080';
+    setStatus('connecting');
+
     try {
-      const ws = new WebSocket(`${wsUrl}/voice`);
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const encodedLang = encodeURIComponent(lang);
+      const ws = new WebSocket(`${wsProtocol}://${window.location.host}/api/v1/ws/${encodedLang}`);
+      ws.binaryType = 'arraybuffer';
       
       ws.onopen = () => setStatus('connected');
-      ws.onclose = () => setStatus('disconnected');
+      ws.onclose = (event) => {
+        if (event.code === 1008) {
+          setError('Rate limit exceeded. Please retry in a moment.');
+          setStatus('error');
+          return;
+        }
+        if (event.code === 1011) {
+          setError('Session timed out due to inactivity. Start a new prompt.');
+          setStatus('error');
+          return;
+        }
+        setStatus('disconnected');
+      };
       ws.onerror = () => setStatus('error');
       ws.onmessage = (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          onAudioChunk?.(event.data);
+          return;
+        }
+
+        if (event.data instanceof Blob) {
+          event.data.arrayBuffer().then((chunk) => onAudioChunk?.(chunk));
+          return;
+        }
+
         try {
-          const msg = JSON.parse(event.data) as WsMessageFromServer;
+          const msg = JSON.parse(event.data as string) as BackendJsonEvent;
           handleMessage(msg);
         } catch (err) {
           console.error("Failed to parse WS message", err);
@@ -43,58 +96,23 @@ export function useVoiceSocket() {
     } catch (e) {
       setStatus('error');
     }
-  }, [status]);
+  }, [handleMessage, lang, onAudioChunk, setError]);
 
-  const handleMessage = useCallback((msg: WsMessageFromServer) => {
-    switch (msg.type) {
-      case 'ack':
-        // Ready to receive audio
-        break;
-      case 'transcript_partial':
-        store.appendPartialTranscript(msg.text);
-        store.setStatus('awaiting_response'); // Wait for final
-        break;
-      case 'transcript_final':
-        store.setFinalTranscript(msg.text);
-        break;
-      case 'answer_token':
-        store.setStatus('streaming_answer');
-        store.appendAnswerToken(msg.token);
-        break;
-      case 'answer_done':
-        store.setStatus('done');
-        store.setAnswerDone(msg.text);
-        break;
-      case 'latency':
-        store.setLatencyMetrics({
-          sttMs: msg.sttMs,
-          retrievalMs: msg.retrievalMs,
-          generationMs: msg.generationMs,
-          totalMs: msg.totalMs
-        });
-        break;
-      case 'guardrail_blocked':
-        store.setStatus('error');
-        store.setGuardrailBlocked(msg.reason);
-        break;
-      case 'error':
-        store.setError(msg.message);
-        break;
-    }
-  }, [store]);
-
-  const send = useCallback((data: string | ArrayBuffer | ArrayBufferView | WsMessageFromClient) => {
+  const send = useCallback((data: ArrayBuffer | ArrayBufferView | string) => {
     if (wsRef.current && wsRef.current.readyState === 1) { // OPEN
-      if (typeof data === 'object' && !('byteLength' in data)) {
-        wsRef.current.send(JSON.stringify(data));
-      } else {
-        wsRef.current.send(data as any);
-      }
+      wsRef.current.send(data as any);
     }
   }, []);
 
   const close = useCallback(() => {
     if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        const pendingSocket = wsRef.current;
+        pendingSocket.addEventListener('open', () => pendingSocket.close(), { once: true });
+        wsRef.current = null;
+        return;
+      }
+
       wsRef.current.close();
       wsRef.current = null;
     }

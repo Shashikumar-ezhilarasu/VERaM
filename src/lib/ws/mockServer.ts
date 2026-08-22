@@ -1,4 +1,4 @@
-import { WsMessageFromServer } from './protocol';
+import { BackendJsonEvent } from './protocol';
 
 export type MockConnection = {
   send: (data: string | ArrayBuffer | ArrayBufferView) => void;
@@ -7,7 +7,7 @@ export type MockConnection = {
 };
 
 export function createMockServer(
-  onMessage: (msg: WsMessageFromServer) => void,
+  onMessage: (msg: BackendJsonEvent) => void,
   onOpen: () => void,
   onClose: () => void
 ): MockConnection {
@@ -17,40 +17,22 @@ export function createMockServer(
     readyState: 0, // CONNECTING
     send: (data) => {
       if (isClosed) return;
-      if (typeof data === 'string') {
-        const msg = JSON.parse(data);
-        if (msg.type === 'start_session') {
-          // Acknowledge session start
-        } else if (msg.type === 'end_utterance') {
-          // Simulate the STT and generation sequence
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'transcript_partial', text: 'what is' }); }, 300);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'transcript_partial', text: 'what is the capital' }); }, 700);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'transcript_final', text: 'What is the capital of Goa?' }); }, 1200);
-          
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'answer_token', token: 'The ' }); }, 1500);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'answer_token', token: 'capital ' }); }, 1600);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'answer_token', token: 'of ' }); }, 1700);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'answer_token', token: 'Goa ' }); }, 1800);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'answer_token', token: 'is ' }); }, 1900);
-          setTimeout(() => { if (!isClosed) onMessage({ type: 'answer_token', token: 'Panaji.' }); }, 2000);
-          
-          setTimeout(() => { 
-            if (!isClosed) onMessage({ 
-              type: 'latency', 
-              sttMs: 350, retrievalMs: 400, generationMs: 800, totalMs: 1550 
-            }); 
-          }, 2100);
-
-          setTimeout(() => { 
-            if (!isClosed) onMessage({ 
-              type: 'answer_done', 
-              text: 'The capital of Goa is Panaji.',
-              sources: [{ chunkId: 'doc-1', snippet: 'Panaji is the capital city of Goa.' }]
-            }); 
-          }, 2100);
-        }
+      if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+        // Simulate STT + LLM completion after receiving audio bytes.
+        setTimeout(() => {
+          if (!isClosed) onMessage({ event: 'transcript.partial', text: 'what is' });
+        }, 300);
+        setTimeout(() => {
+          if (!isClosed) onMessage({ event: 'transcript.final', text: 'What is the capital of Goa?' });
+        }, 700);
+        setTimeout(() => {
+          if (!isClosed) onMessage({ event: 'llm.response', text: 'The capital of Goa is Panaji.' });
+        }, 1200);
+        setTimeout(() => {
+          if (!isClosed) onMessage({ event: 'audio.complete' });
+        }, 1600);
       } else {
-        // Mock receiving binary audio frames (do nothing)
+        // Ignore text messages in the mock path.
       }
     },
     close: () => {
@@ -64,7 +46,6 @@ export function createMockServer(
     if (!isClosed) {
       connection.readyState = 1; // OPEN
       onOpen();
-      onMessage({ type: 'ack', sessionId: 'mock-session-123' });
     }
   }, 500);
 

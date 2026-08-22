@@ -132,7 +132,7 @@ export default function LandingPage() {
             </p>
             
             <div className="hero-fade-up flex flex-wrap gap-4">
-              <Link href="/demo?mock=1">
+              <Link href="/demo">
                 <PillButton variant="solid">Try the live demo</PillButton>
               </Link>
               <PillButton variant="outline" className="text-cream border-cream hover:bg-cream hover:text-forest">
@@ -158,7 +158,7 @@ export default function LandingPage() {
             { step: "04", title: "Generate", icon: Zap, desc: "LLM synthesizes the answer with strict guardrails." },
             { step: "05", title: "Answer", icon: Shield, desc: "Tokens stream back to the UI in real-time." }
           ].map((item, idx) => (
-            <div key={idx} className="pipeline-card w-[400px] flex-shrink-0 bg-forest/5 p-8 rounded-3xl border border-ink-green/10">
+            <div key={idx} className="pipeline-card w-100 shrink-0 bg-forest/5 p-8 rounded-3xl border border-ink-green/10">
               <div className="w-12 h-12 bg-accent-pink-soft rounded-full flex items-center justify-center mb-6">
                 <span className="font-mono font-bold text-accent-pink">{item.step}</span>
               </div>
@@ -173,7 +173,7 @@ export default function LandingPage() {
       {/* Simple Footer */}
       <footer className="bg-forest py-12 text-center text-cream">
         <p className="font-mono text-accent-pink tracking-[0.2em] mb-4">#RAGInGoa</p>
-        <Link href="/demo?mock=1">
+        <Link href="/demo">
           <PillButton variant="solid">Try the live demo</PillButton>
         </Link>
       </footer>

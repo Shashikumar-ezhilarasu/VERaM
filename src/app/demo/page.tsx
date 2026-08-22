@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useVoiceSocket } from '@/lib/ws/useVoiceSocket';
 import { useMicCapture } from '@/lib/audio/useMicCapture';
 import { useVoiceSessionStore } from '@/store/voiceSessionStore';
@@ -10,11 +10,106 @@ import { MicButton } from '@/components/voice/MicButton';
 import { TranscriptPanel, AnswerPanel } from '@/components/voice/TranscriptPanel';
 
 export default function DemoPage() {
-  const { status: wsStatus, connect, send, close } = useVoiceSocket();
   const store = useVoiceSessionStore();
+  const playbackCtxRef = useRef<AudioContext | null>(null);
+  const answerTextRef = useRef('');
+  const ttsChunksRef = useRef<Uint8Array[]>([]);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const ensurePlaybackContext = useCallback(async () => {
+    if (!playbackCtxRef.current) {
+      playbackCtxRef.current = new AudioContext();
+    }
+
+    if (playbackCtxRef.current.state === 'suspended') {
+      await playbackCtxRef.current.resume();
+    }
+
+    return playbackCtxRef.current;
+  }, []);
+
+  const speakFallback = useCallback((text: string) => {
+    if (!text || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'hi-IN';
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  const clearPlayback = useCallback(() => {
+    ttsChunksRef.current = [];
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.src = '';
+    }
+    activeAudioRef.current = null;
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, []);
+
+  const handleAudioChunk = useCallback((data: ArrayBuffer) => {
+    ttsChunksRef.current.push(new Uint8Array(data));
+  }, []);
+
+  const playBufferedAudio = useCallback(async () => {
+    const chunks = ttsChunksRef.current;
+    if (!chunks.length) {
+      speakFallback(answerTextRef.current);
+      return;
+    }
+
+    const totalLength = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const merged = new Uint8Array(totalLength);
+
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    ttsChunksRef.current = [];
+
+    const audioBlob = new Blob([merged], { type: 'audio/wav' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+
+    const audio = new Audio(audioUrl);
+    activeAudioRef.current = audio;
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+      if (activeAudioRef.current === audio) {
+        activeAudioRef.current = null;
+      }
+    };
+
+    try {
+      await audio.play();
+    } catch {
+      URL.revokeObjectURL(audioUrl);
+      if (activeAudioRef.current === audio) {
+        activeAudioRef.current = null;
+      }
+      speakFallback(answerTextRef.current);
+    }
+  }, [speakFallback]);
+
+  const handleAudioComplete = useCallback(() => {
+    void playBufferedAudio();
+  }, [playBufferedAudio]);
+
+  const { status: wsStatus, connect, send, close } = useVoiceSocket({
+    lang: 'hi-IN',
+    onAudioChunk: handleAudioChunk,
+    onAudioInterrupt: clearPlayback,
+    onAudioComplete: handleAudioComplete,
+  });
   
-  const handleAudioData = React.useCallback((buffer: ArrayBuffer) => {
-    // Send binary PCM16 data directly
+  const handleAudioData = useCallback((buffer: ArrayBuffer) => {
     if (wsStatus === 'connected') {
       send(buffer);
     }
@@ -23,26 +118,37 @@ export default function DemoPage() {
   const { startCapture, stopCapture, getAnalyser } = useMicCapture(handleAudioData);
 
   useEffect(() => {
+    answerTextRef.current = store.answerText;
+  }, [store.answerText]);
+
+  useEffect(() => {
     connect();
-    return () => close();
-  }, [connect, close]);
+    return () => {
+      close();
+      stopCapture();
+      clearPlayback();
+      if (playbackCtxRef.current) {
+        void playbackCtxRef.current.close();
+        playbackCtxRef.current = null;
+      }
+    };
+  }, [clearPlayback, close, connect, stopCapture]);
 
   const handleStart = async () => {
     store.resetSession();
     store.setStatus('requesting_mic');
+    clearPlayback();
     try {
+      await ensurePlaybackContext();
       await startCapture();
       store.setStatus('recording');
-      send({ type: "start_session", sampleRate: 16000, encoding: "pcm16", lang: "auto" });
-    } catch (err) {
+    } catch {
       store.setError("Mic permission denied");
     }
   };
 
   const handleStop = () => {
     stopCapture();
-    send({ type: "end_utterance" });
-    // Keep socket open, switch state to waiting
     if (store.status === 'recording') {
       store.setStatus('awaiting_response');
     }
@@ -50,7 +156,7 @@ export default function DemoPage() {
 
   return (
     <main className="min-h-screen bg-forest flex items-center justify-center p-4 md:p-8">
-      <div className="bg-cream rounded-[2rem] p-8 md:p-12 max-w-3xl w-full shadow-2xl relative border-4 border-ink-green">
+      <div className="bg-cream rounded-4xl p-8 md:p-12 max-w-3xl w-full shadow-2xl relative border-4 border-ink-green">
         <div className="absolute top-6 right-6">
           <ConnectionStatusDot status={wsStatus} onReconnect={connect} />
         </div>
@@ -60,7 +166,7 @@ export default function DemoPage() {
           <h1 className="text-4xl md:text-5xl font-serif text-ink-green leading-tight">Ask Anything</h1>
         </div>
 
-        <div className="flex flex-col items-center justify-center min-h-[300px]">
+        <div className="flex flex-col items-center justify-center min-h-75">
           <MicButton 
             onStart={handleStart} 
             onStop={handleStop} 
