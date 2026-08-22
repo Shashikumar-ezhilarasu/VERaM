@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useCallback } from 'react';
+const SILENCE_TIMEOUT_MS = 10000;
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useVoiceSocket } from '@/lib/ws/useVoiceSocket';
 import { useMicCapture } from '@/lib/audio/useMicCapture';
 import { useVoiceSessionStore } from '@/store/voiceSessionStore';
@@ -18,7 +20,7 @@ export default function DemoPage() {
 
   const ensurePlaybackContext = useCallback(async () => {
     if (!playbackCtxRef.current) {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: any }).webkitAudioContext;
       playbackCtxRef.current = new AudioCtx();
     }
 
@@ -44,8 +46,42 @@ export default function DemoPage() {
     const utterance = new SpeechSynthesisUtterance(cleanedText);
     utterance.lang = 'hi-IN';
     utterance.rate = 1;
+    utterance.onend = () => store.setAudioState({ isPlaying: false, isPaused: false });
+    store.setAudioState({ isPlaying: true, isPaused: false, hasData: true });
     window.speechSynthesis.speak(utterance);
   }, []);
+
+
+  const pauseAudio = useCallback(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      store.setAudioState({ isPlaying: false, isPaused: false });
+      store.setAudioState({ isPlaying: false, isPaused: true });
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.pause();
+      store.setAudioState({ isPlaying: false, isPaused: true });
+    }
+  }, [store]);
+
+  const resumeAudio = useCallback(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.play();
+      store.setAudioState({ isPlaying: true, isPaused: false });
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.resume();
+      store.setAudioState({ isPlaying: true, isPaused: false });
+    }
+  }, [store]);
+
+  const replayAudio = useCallback(() => {
+    if (activeAudioRef.current) {
+      activeAudioRef.current.currentTime = 0;
+      activeAudioRef.current.play();
+      store.setAudioState({ isPlaying: true, isPaused: false });
+    } else {
+      speakFallback(answerTextRef.current);
+    }
+  }, [speakFallback, store]);
 
   const clearPlayback = useCallback(() => {
     ttsChunksRef.current = [];
@@ -87,7 +123,13 @@ export default function DemoPage() {
 
     const audio = new Audio(audioUrl);
     activeAudioRef.current = audio;
+
+    audio.ontimeupdate = () => {
+      store.setAudioState({ currentTime: audio.currentTime, duration: audio.duration || 0 });
+    };
+
     audio.onended = () => {
+      store.setAudioState({ isPlaying: false, isPaused: false });
       URL.revokeObjectURL(audioUrl);
       if (activeAudioRef.current === audio) {
         activeAudioRef.current = null;
@@ -95,6 +137,7 @@ export default function DemoPage() {
     };
 
     try {
+      store.setAudioState({ isPlaying: true, isPaused: false, hasData: true });
       await audio.play();
     } catch {
       URL.revokeObjectURL(audioUrl);
@@ -123,6 +166,70 @@ export default function DemoPage() {
 
   const { startCapture, stopCapture, muteCapture, getAnalyser } = useMicCapture(handleAudioData);
 
+
+  
+  const [silenceCountdown, setSilenceCountdown] = useState<number | null>(null);
+
+  // Silence detector
+  useEffect(() => {
+    if (store.status !== 'recording') {
+      setSilenceCountdown(null);
+      return;
+    }
+    
+    let silenceStart = 0;
+    let animationFrame: number;
+    const analyser = getAnalyser();
+    const dataArray = new Uint8Array(analyser ? analyser.fftSize : 256);
+    
+    const checkSilence = () => {
+      if (!analyser) return;
+      analyser.getByteTimeDomainData(dataArray);
+      let isSilent = true;
+      for (let i = 0; i < dataArray.length; i++) {
+        if (Math.abs(dataArray[i] - 128) > 3) {
+          isSilent = false;
+          break;
+        }
+      }
+      
+      if (!isSilent) {
+        silenceStart = 0;
+        setSilenceCountdown(null);
+      } else {
+        if (silenceStart === 0) silenceStart = Date.now();
+        const elapsed = Date.now() - silenceStart;
+        
+        if (elapsed > SILENCE_TIMEOUT_MS - 3000) {
+          setSilenceCountdown(Math.ceil((SILENCE_TIMEOUT_MS - elapsed) / 1000));
+        }
+        
+        if (elapsed >= SILENCE_TIMEOUT_MS) {
+          console.log("10s of silence detected, auto-stopping mic...");
+          handleStop();
+          silenceStart = 0;
+          setSilenceCountdown(null);
+          return;
+        }
+      }
+      animationFrame = requestAnimationFrame(checkSilence);
+    };
+    
+    checkSilence();
+    return () => {
+      cancelAnimationFrame(animationFrame);
+    };
+  }, [store.status, getAnalyser]);
+
+
+
+  // Automatically stop the microphone if the backend endpoints the turn naturally
+  useEffect(() => {
+    if (store.status === 'awaiting_response' || store.status === 'done' || store.status === 'error') {
+      stopCapture();
+    }
+  }, [store.status, stopCapture]);
+
   useEffect(() => {
     answerTextRef.current = store.answerText;
   }, [store.answerText]);
@@ -139,6 +246,18 @@ export default function DemoPage() {
       }
     };
   }, [clearPlayback, close, connect, stopCapture]);
+
+
+  useEffect(() => {
+    const handleOnline = () => store.setSystemState({ isOnline: true });
+    const handleOffline = () => store.setSystemState({ isOnline: false });
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [store]);
 
   const handleStart = async () => {
     console.log("MicButton clicked: handleStart");
@@ -160,8 +279,10 @@ export default function DemoPage() {
       store.setStatus('recording');
     } catch (e: any) {
       console.error("Mic start failed", e);
-      alert(`Could not start microphone: ${e?.message || 'Unknown error'}`);
-      store.setError("Mic permission denied");
+      
+      store.setAudioState({ micError: true });
+      store.setError("Microphone permission denied. Please allow microphone access in your browser settings and try again.");
+
     }
   };
 
@@ -196,10 +317,11 @@ export default function DemoPage() {
             onStart={handleStart} 
             onStop={handleStop} 
             analyser={getAnalyser()} 
+            countdown={silenceCountdown} 
           />
           
           <TranscriptPanel />
-          <AnswerPanel />
+          <AnswerPanel onPause={pauseAudio} onPlay={resumeAudio} onReplay={replayAudio} />
           
           <div className="mt-8">
             <LatencyBadges />

@@ -33,7 +33,7 @@ export function useMicCapture(onAudioData: (buffer: ArrayBuffer) => void) {
       
       mediaStreamRef.current = stream;
       
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({
         sampleRate: 16000,
       });
       audioContextRef.current = audioCtx;

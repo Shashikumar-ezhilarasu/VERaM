@@ -1,18 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: "Voice-Enabled RAG",
@@ -25,7 +12,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${jetbrainsMono.variable} h-full`}>
+    <html lang="en" className="h-full">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@100..900&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
+      </head>
       <body className="min-h-full flex flex-col antialiased">
         {children}
       </body>

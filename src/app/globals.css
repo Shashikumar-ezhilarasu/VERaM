@@ -1,61 +1,33 @@
 @import "tailwindcss";
 
-:root {
-  --bg-forest: #0B3D24;
-  --card-cream: #FBF3DE;
-  --ink-green: #0F4B2C;
-  --accent-pink: #EC1470;
-  --accent-pink-soft: #FCE1EC;
-  --accent-yellow: #F4C93B;
-  --ink-muted: #4B5A50;
-  --tech-cyan: #00F0FF;
-  --tech-lime: #39FF14;
-  --bg-darker: #051A0F;
-  --hh-bg: #0A0E0A;
-  --hh-green: #00FF66;
-  --hh-yellow: #FFD700;
-  
-  /* HH Goa 2026 Official Theme */
-  --hhgoa-green: #2F5233; /* Deep forest green */
-  --hhgoa-green-dark: #244027; /* Darker shade for contrast */
-  --hhgoa-cream: #F5F0DC; /* Warm cream / off-white */
-  --hhgoa-yellow: #F4C430; /* Bright yellow */
-  --hhgoa-pink: #EC4899; /* Hot pink / magenta */
-  --hhgoa-white: #FFFFFF;
-}
+@theme {
+  --color-forest: #0B3D24;
+  --color-cream: #FBF3DE;
+  --color-ink-green: #0F4B2C;
+  --color-accent-pink: #EC1470;
+  --color-accent-pink-soft: #FCE1EC;
+  --color-accent-yellow: #F4C93B;
+  --color-ink-muted: #4B5A50;
 
-@theme inline {
-  --color-forest: var(--bg-forest);
-  --color-cream: var(--card-cream);
-  --color-ink-green: var(--ink-green);
-  --color-accent-pink: var(--accent-pink);
-  --color-accent-pink-soft: var(--accent-pink-soft);
-  --color-accent-yellow: var(--accent-yellow);
-  --color-ink-muted: var(--ink-muted);
+  --color-hhgoa-green: #2F5233;
+  --color-hhgoa-green-dark: #244027;
+  --color-hhgoa-cream: #F5F0DC;
+  --color-hhgoa-yellow: #F4C430;
+  --color-hhgoa-pink: #EC4899;
+  --color-hhgoa-white: #FFFFFF;
 
-  /* HH Goa 2026 Official Theme */
-  --color-hhgoa-green: var(--hhgoa-green);
-  --color-hhgoa-green-dark: var(--hhgoa-green-dark);
-  --color-hhgoa-cream: var(--hhgoa-cream);
-  --color-hhgoa-yellow: var(--hhgoa-yellow);
-  --color-hhgoa-pink: var(--hhgoa-pink);
-  --color-hhgoa-white: var(--hhgoa-white);
-
-  --font-serif: var(--font-fraunces), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-serif: "Fraunces", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 body {
-  background: var(--bg-forest);
-  color: var(--ink-green);
-  /* The spec says: Body copy → mono font, muted green-gray, generous line-height */
+  background: var(--color-forest);
+  color: var(--color-ink-green);
   font-family: var(--font-mono);
-  color: var(--ink-muted);
   line-height: 1.7;
 }
 
-/* Base styles for headings */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
-  color: var(--ink-green);
+  color: var(--color-ink-green);
 }

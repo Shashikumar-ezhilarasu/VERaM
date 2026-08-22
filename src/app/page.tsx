@@ -121,7 +121,7 @@ export default function LandingPage() {
     });
     
     // Fade in sections on scroll
-    gsap.utils.toArray('.fade-section').forEach((section: any) => {
+    gsap.utils.toArray('.fade-section').forEach((section: HTMLElement) => {
       gsap.from(section, {
         y: 40,
         opacity: 0,

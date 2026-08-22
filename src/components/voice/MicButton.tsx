@@ -8,9 +8,10 @@ interface MicButtonProps {
   onStart: () => void;
   onStop: () => void;
   analyser?: AnalyserNode | null;
+  countdown?: number | null;
 }
 
-export function MicButton({ onStart, onStop, analyser }: MicButtonProps) {
+export function MicButton({ onStart, onStop, analyser, countdown }: MicButtonProps) {
   const status = useVoiceSessionStore(state => state.status);
   const ringRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
@@ -47,7 +48,7 @@ export function MicButton({ onStart, onStop, analyser }: MicButtonProps) {
 
   // Spin animation for connecting/processing states
   useEffect(() => {
-    let ctx = gsap.context(() => {
+    const ctx = gsap.context(() => {
       if (status === 'awaiting_response' || status === 'streaming_answer') {
         gsap.to(ringRef.current, { rotation: "+=360", duration: 2, repeat: -1, ease: "linear" });
       } else {
@@ -66,15 +67,17 @@ export function MicButton({ onStart, onStop, analyser }: MicButtonProps) {
     <div className="relative flex flex-col items-center justify-center">
       <div className="relative flex items-center justify-center w-32 h-32 mb-4">
         <div ref={ringRef} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <DashedCircle size={140} className={isError ? "text-red-500 stroke-current" : "text-hhgoa-green stroke-current"} />
+          <DashedCircle size={140} className={isError ? "text-hhgoa-pink stroke-current" : "text-hhgoa-green stroke-current opacity-30"} />
         </div>
         
         <button 
           onClick={isRecording ? onStop : onStart}
           disabled={status === 'requesting_mic' || isProcessing}
-          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-colors shadow-lg
-            ${isError ? 'bg-red-900 text-red-200' : 'bg-hhgoa-green text-black hover:bg-white'}
-            ${(status === 'requesting_mic' || isProcessing) ? 'opacity-70 cursor-wait' : 'cursor-pointer'}
+          className={`relative z-10 w-24 h-24 rounded-full flex items-center justify-center transition-colors shadow-[4px_4px_0_rgba(0,0,0,0.2)]
+            ${isError ? 'bg-hhgoa-pink text-white outline-dashed outline-2 outline-offset-4 outline-hhgoa-pink' : 
+              isRecording ? 'bg-hhgoa-pink text-white outline-dashed outline-2 outline-offset-4 outline-hhgoa-pink animate-pulse' :
+              'bg-hhgoa-yellow text-hhgoa-green hover:bg-hhgoa-cream outline-dashed outline-2 outline-offset-4 outline-hhgoa-green'}
+            ${(status === 'requesting_mic' || isProcessing) ? 'opacity-70 cursor-wait bg-hhgoa-cream text-hhgoa-green' : 'cursor-pointer'}
           `}
         >
           {status === 'requesting_mic' || isProcessing ? (
@@ -82,17 +85,20 @@ export function MicButton({ onStart, onStop, analyser }: MicButtonProps) {
           ) : isError ? (
             <AlertCircle size={36} />
           ) : (
-            <Mic size={36} className={isRecording ? "text-hhgoa-green" : ""} />
+            <Mic size={36} />
           )}
         </button>
       </div>
 
-      <p className="font-mono text-xs tracking-widest uppercase text-white/60 h-4">
-        {isIdle && "Tap to ask"}
-        {status === 'requesting_mic' && "Allow Mic..."}
-        {isRecording && "Listening..."}
-        {isProcessing && "Thinking..."}
-        {isError && "Error"}
+      <p className="font-mono text-xs tracking-widest uppercase h-4 font-bold transition-colors">
+        {isIdle && <span className="text-hhgoa-green/60">Tap to ask</span>}
+        {status === 'requesting_mic' && <span className="text-hhgoa-green/60">Allow Mic...</span>}
+        {isRecording && !countdown && <span className="text-hhgoa-pink animate-pulse">Listening...</span>}
+        {isRecording && countdown && (
+           <span className="text-hhgoa-pink animate-ping">Stopping in {countdown}...</span>
+        )}
+        {isProcessing && <span className="text-hhgoa-yellow">Thinking...</span>}
+        {isError && <span className="text-red-500">Error</span>}
       </p>
     </div>
   );
